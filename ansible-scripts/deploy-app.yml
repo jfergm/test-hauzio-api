@@ -1,0 +1,31 @@
+---
+  - name: Deploy
+    hosts: instances
+    become: true
+    remote_user: root
+    vars:
+      timestamp: "{{ansible_date_time.iso8601_basic}}"
+    tasks:
+      - name: Synchronization of src on the control machine to dest on the remote hosts
+        ansible.posix.synchronize:
+          src: ../../
+          dest: "~/app-{{ timestamp }}/"
+          rsync_opts:
+          - "--exclude=node_modules/"
+          - "--exclude=ansible-scripts/"
+      - name: remove container
+        docker_container:
+          name: app-container
+          state: absent
+          image: test:app
+      - name: Create the image
+        ansible.builtin.shell: "docker build -t test:app ~/app-{{ timestamp }}"
+      - name: run container
+        docker_container:
+          name: app-container
+          image: test:app
+          ports:
+            - "3000:3000"
+          log_driver: "json-file"
+          log_opt:
+            "max-size": "10m"
